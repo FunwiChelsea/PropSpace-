@@ -1,0 +1,93 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+.pnpm-store/
+
+# =========================
+# Environment & secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Vite
+frontend/dist/
+
+# TypeScript compiled output
+backend/dist/
+
+# =========================
+# Logs & debug
+# =========================
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Testing & coverage
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# IDE & editors
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Cursor (local IDE state)
+.cursor/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================
+# User uploads (keep directory via .gitkeep)
+# =========================
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# =========================
+# Misc
+# =========================
+*.local
+.cache/
+.temp/
+tmp/
+temp/
+
+# Optional local tooling
+.vercel/
+.turbo/
+
+# Certificates & keys (never commit)
+*.pem
+*.key
+*.p12
+*.crt
+credentials.json
+secrets.json
