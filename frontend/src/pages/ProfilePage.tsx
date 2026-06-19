@@ -3,9 +3,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
-import { api, getErrorMessage } from "@/lib/api";
+import { api, getErrorMessage, uploadImages } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -22,13 +28,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 const profileSchema = z.object({
   displayName: z.string().min(1, "Display name is required").max(100),
   phone: z.string().max(20).optional(),
-  avatarUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+  avatarUrl: z.string().optional().or(z.literal("")),
 });
 
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(6, "New password must be at least 6 characters"),
+    newPassword: z
+      .string()
+      .min(6, "New password must be at least 6 characters"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -45,6 +53,8 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -64,6 +74,45 @@ export function ProfilePage() {
     },
   });
 
+  const handleAvatarChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setProfileError("Please select a valid image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError("Image size must be less than 5MB");
+      return;
+    }
+
+    try {
+      // Show preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload image
+      setIsUploading(true);
+      const urls = await uploadImages([file]);
+      profileForm.setValue("avatarUrl", urls[0]);
+      setProfileError(null);
+    } catch (err) {
+      setProfileError(getErrorMessage(err));
+      setAvatarPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const onProfileSubmit = async (values: ProfileFormValues) => {
     setProfileSuccess(null);
     setProfileError(null);
@@ -75,6 +124,7 @@ export function ProfilePage() {
       });
       await refreshUser();
       setProfileSuccess("Profile updated successfully");
+      setAvatarPreview(null);
     } catch (err) {
       setProfileError(getErrorMessage(err));
     }
@@ -102,7 +152,9 @@ export function ProfilePage() {
       <div className="flex items-center gap-4">
         <Avatar className="h-16 w-16">
           <AvatarImage src={user?.avatarUrl} alt={user?.username} />
-          <AvatarFallback className="text-lg">{initials.toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-lg">
+            {initials.toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <div>
           <h1 className="text-2xl font-bold">Profile Settings</h1>
@@ -117,7 +169,10 @@ export function ProfilePage() {
         </CardHeader>
         <CardContent>
           <Form {...profileForm}>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
+            <form
+              onSubmit={profileForm.handleSubmit(onProfileSubmit)}
+              className="space-y-4"
+            >
               <FormField
                 control={profileForm.control}
                 name="displayName"
@@ -144,19 +199,57 @@ export function ProfilePage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={profileForm.control}
-                name="avatarUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Avatar URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://example.com/avatar.jpg" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Avatar</FormLabel>
+                <FormControl>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-20 w-20">
+                        <AvatarImage
+                          src={
+                            avatarPreview ||
+                            profileForm.watch("avatarUrl") ||
+                            user?.avatarUrl
+                          }
+                          alt="Avatar preview"
+                        />
+                        <AvatarFallback className="text-xl">
+                          {initials.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Supported formats: JPG, PNG, GIF, WebP (Max 5MB)
+                        </p>
+                        <label className="cursor-pointer inline-flex items-center justify-center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleAvatarChange}
+                            disabled={isUploading}
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isUploading}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              (
+                                e.currentTarget.parentElement?.querySelector(
+                                  'input[type="file"]',
+                                ) as HTMLInputElement
+                              )?.click();
+                            }}
+                          >
+                            {isUploading ? "Uploading..." : "Choose Image"}
+                          </Button>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </FormControl>
+              </FormItem>
               {profileSuccess && (
                 <Alert>
                   <AlertDescription>{profileSuccess}</AlertDescription>
@@ -167,8 +260,13 @@ export function ProfilePage() {
                   <AlertDescription>{profileError}</AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" disabled={profileForm.formState.isSubmitting}>
-                {profileForm.formState.isSubmitting ? "Saving..." : "Save Changes"}
+              <Button
+                type="submit"
+                disabled={profileForm.formState.isSubmitting}
+              >
+                {profileForm.formState.isSubmitting
+                  ? "Saving..."
+                  : "Save Changes"}
               </Button>
             </form>
           </Form>
@@ -184,7 +282,10 @@ export function ProfilePage() {
         </CardHeader>
         <CardContent>
           <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+            <form
+              onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+              className="space-y-4"
+            >
               <FormField
                 control={passwordForm.control}
                 name="currentPassword"
@@ -234,8 +335,13 @@ export function ProfilePage() {
                   <AlertDescription>{passwordError}</AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
-                {passwordForm.formState.isSubmitting ? "Updating..." : "Update Password"}
+              <Button
+                type="submit"
+                disabled={passwordForm.formState.isSubmitting}
+              >
+                {passwordForm.formState.isSubmitting
+                  ? "Updating..."
+                  : "Update Password"}
               </Button>
             </form>
           </Form>
